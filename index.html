@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Intercambio gaseoso · Unidad alveolo-capilar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0B3B5E;
+    --ink-2: #14507a;
+    --o2: #4A90D9;
+    --o2-deep: #2C6FB8;
+    --co2: #C43A7A;
+    --co2-deep: #8E2658;
+    --green: #2E7D5B;
+    --amber: #B8860B;
+    --bg: #FAFAFA;
+    --panel: #ffffff;
+    --line: #E4E8EE;
+    --line-2: #D5DCE5;
+    --muted: #5d6b7c;
+    --alarm: #D93025;
+    --rbc-oxy: #D33A3A;
+    --rbc-deox: #5C2A3E;
+    --tissue: #f5e8ed;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; height: 100%; overflow: hidden; }
+
+  .app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "header header"
+      "stage  panel"
+      "footer footer";
+    gap: 12px;
+    padding: 12px;
+    height: 100vh;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  header.title {
+    grid-area: header;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 8px;
+  }
+  header.title h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  header.title .sub { margin-top: 2px; color: var(--muted); font-size: 12px; }
+  header.title .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); flex-wrap: wrap; justify-content: flex-end; }
+  .legend .sw { display: inline-flex; align-items: center; gap: 5px; }
+  .legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  /* ==== Stage ==== */
+  .stage {
+    grid-area: stage;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 0;
+  }
+  .stage h2 { margin: 0; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stage-svg-wrap { min-height: 0; display: flex; align-items: stretch; }
+  .stage svg { width: 100%; height: 100%; display: block; }
+
+  /* indicators row */
+  .vitals { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .vital {
+    background: #F5F8FB; border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 8px;
+  }
+  .vital .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .vital .val {
+    font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 600;
+    color: var(--ink); margin-top: 1px;
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .vital .unit { font-size: 10px; color: var(--muted); font-weight: 500; }
+  .vital .arrow { font-size: 11px; margin-left: auto; font-weight: 700; }
+  .vital.warn { background: #FFF7E6; border-color: #F2D58F; }
+  .vital.warn .val { color: var(--amber); }
+  .vital.bad  { background: #FCEBEA; border-color: #F2B5B0; }
+  .vital.bad  .val { color: var(--alarm); }
+  .vital.good { background: #ECF6F0; border-color: #BFE0CE; }
+  .vital.good .val { color: var(--green); }
+
+  /* ==== Panel ==== */
+  .panel {
+    grid-area: panel;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px;
+    display: flex; flex-direction: column; gap: 10px;
+    min-height: 0; overflow-y: auto;
+  }
+  .panel h2 { margin: 0; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .preset {
+    border: 1px solid var(--line-2); background: #fff; color: var(--ink);
+    border-radius: 8px; padding: 6px 8px;
+    font: inherit; font-size: 11.5px; font-weight: 600;
+    cursor: pointer; text-align: left; line-height: 1.15;
+    transition: all .15s ease;
+  }
+  .preset .tag { display: block; font-size: 9px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1px; }
+  .preset:hover { border-color: var(--ink); }
+  .preset.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .preset.active .tag { color: rgba(255,255,255,0.7); }
+  .preset[data-k="t1"].active { background: var(--co2); border-color: var(--co2); }
+  .preset[data-k="t2"].active { background: var(--green); border-color: var(--green); }
+  .preset[data-k="t3"].active { background: var(--amber); border-color: var(--amber); }
+
+  fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  fieldset legend {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.08em; font-weight: 600; padding: 0; margin-bottom: 2px;
+  }
+
+  .control { display: flex; flex-direction: column; gap: 2px; }
+  .control .row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .control label { font-size: 11.5px; font-weight: 500; }
+  .control .num { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 600; color: var(--ink); }
+  .control input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 3px; background: var(--line-2);
+    border-radius: 999px; outline: none;
+  }
+  .control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--ink); cursor: pointer;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line-2);
+  }
+  .control input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--ink); cursor: pointer; border: 2px solid #fff;
+  }
+  .control.oxy  input[type="range"]::-webkit-slider-thumb { background: var(--o2-deep); }
+  .control.vent input[type="range"]::-webkit-slider-thumb { background: var(--green); }
+  .control.path input[type="range"]::-webkit-slider-thumb { background: var(--co2-deep); }
+  .control.obs  input[type="range"]::-webkit-slider-thumb { background: var(--amber); }
+
+  /* ==== Fick + Hint ==== */
+  .fick {
+    background: #F5F8FB; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px;
+    font-size: 11.5px; line-height: 1.4;
+  }
+  .fick .formula {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    text-align: center; margin: 4px 0 6px; color: var(--ink); font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .fick .factors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .fick .fac {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 5px; text-align: center;
+  }
+  .fick .fac .k {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    color: var(--ink-2);
+  }
+  .fick .fac .v {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+    color: var(--ink); margin-top: 1px;
+  }
+  .fick .fac.up    .v { color: var(--green); }
+  .fick .fac.down  .v { color: var(--alarm); }
+  .fick .legend-x { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+  .hint {
+    background: #F5F8FB; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px;
+    font-size: 11.5px; line-height: 1.45; color: var(--ink);
+  }
+  .hint .lever {
+    display: inline-block; padding: 1px 6px; border-radius: 999px;
+    background: var(--ink); color: #fff; font-weight: 600; font-size: 10.5px;
+    margin: 0 1px;
+  }
+  .hint.t1 { background: #FCEFF6; border-color: #EAC4D7; }
+  .hint.t1 .lever { background: var(--co2); }
+  .hint.t2 { background: #ECF6F0; border-color: #BFE0CE; }
+  .hint.t2 .lever { background: var(--green); }
+  .hint.t3 { background: #FBF3DD; border-color: #E6CF8E; }
+  .hint.t3 .lever { background: var(--amber); }
+
+  /* svg */
+  .svg-label    { font: 600 12px 'Inter', sans-serif; fill: var(--ink); }
+  .svg-label-sm { font: 500 10.5px 'Inter', sans-serif; fill: var(--muted); }
+  .svg-num      { font: 600 12px 'JetBrains Mono', monospace; fill: var(--ink); }
+
+  footer.footnote {
+    grid-area: footer;
+    color: var(--muted); font-size: 10.5px; text-align: center; padding: 0;
+  }
+
+  @media (max-width: 980px), (max-height: 720px) {
+    html, body { overflow: auto; height: auto; }
+    .app { grid-template-columns: 1fr; grid-template-areas: "header" "stage" "panel" "footer"; height: auto; }
+    .panel { overflow-y: visible; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="title">
+    <div>
+      <h1>Intercambio gaseoso · Unidad alveolo-capilar</h1>
+      <div class="sub">Modifica espesor de membrana, obstrucción de la vía aérea, FiO₂ y la bomba ventilatoria. Observa cómo varían PAO₂, PaO₂, PaCO₂ y la saturación.</div>
+    </div>
+    <div class="legend">
+      <span class="sw"><i class="dot" style="background:var(--o2)"></i>O₂</span>
+      <span class="sw"><i class="dot" style="background:var(--co2)"></i>CO₂</span>
+      <span class="sw"><i class="dot" style="background:var(--rbc-oxy)"></i>Hematíe oxigenado</span>
+      <span class="sw"><i class="dot" style="background:var(--rbc-deox)"></i>Hematíe desaturado</span>
+    </div>
+  </header>
+
+  <!-- ====== STAGE ====== -->
+  <section class="stage">
+    <h2>Corte transversal · plano longitudinal</h2>
+
+    <div class="stage-svg-wrap">
+    <svg id="anatomy" viewBox="0 0 920 520" preserveAspectRatio="xMidYMid meet" aria-label="Unidad alveolo-capilar animada">
+      <defs>
+        <radialGradient id="alvGrad" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stop-color="#FFFFFF"/>
+          <stop offset="100%" stop-color="#E8F0F8"/>
+        </radialGradient>
+        <linearGradient id="memGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#dbe3ec"/>
+          <stop offset="100%" stop-color="#c9d3df"/>
+        </linearGradient>
+        <linearGradient id="capGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#FFE9E6"/>
+          <stop offset="100%" stop-color="#FFD8D2"/>
+        </linearGradient>
+        <pattern id="fibrosis" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#9a7d2f" stroke-width="1.4"/>
+        </pattern>
+        <pattern id="mucus" width="9" height="9" patternUnits="userSpaceOnUse">
+          <circle cx="3" cy="3" r="2.4" fill="#caa242" opacity="0.85"/>
+          <circle cx="7" cy="7" r="1.4" fill="#a37f1d" opacity="0.8"/>
+        </pattern>
+      </defs>
+
+      <!-- Bronchial tree (trachea → main bronchi → segmental → terminal bronchioles).
+           Obstruction overlay narrows lumen and adds mucus. -->
+      <g id="airway" transform="translate(20,140)">
+        <text class="svg-label-sm" x="0" y="-12">Árbol bronquial</text>
+        <!-- Trachea -->
+        <path id="trachea" d="M0,10 L0,55 Q0,70 12,80" fill="none" stroke="var(--ink)" stroke-width="14" stroke-linecap="round"/>
+        <path id="tracheaLumen" d="M0,10 L0,55 Q0,70 12,80" fill="none" stroke="#EEF3F8" stroke-width="9" stroke-linecap="round"/>
+        <!-- Carina + main bronchi -->
+        <path id="bronchusR" d="M12,80 L60,110" fill="none" stroke="var(--ink)" stroke-width="11" stroke-linecap="round"/>
+        <path id="bronchusRLumen" d="M12,80 L60,110" fill="none" stroke="#EEF3F8" stroke-width="7" stroke-linecap="round"/>
+        <path id="bronchusL" d="M12,80 L-30,118" fill="none" stroke="var(--ink)" stroke-width="11" stroke-linecap="round"/>
+        <path id="bronchusLLumen" d="M12,80 L-30,118" fill="none" stroke="#EEF3F8" stroke-width="7" stroke-linecap="round"/>
+        <!-- Lobar/segmental branches (right) -->
+        <path d="M60,110 L92,118" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" fill="none"/>
+        <path id="seg1Lumen" d="M60,110 L92,118" stroke="#EEF3F8" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M60,110 L80,140" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" fill="none"/>
+        <path id="seg2Lumen" d="M60,110 L80,140" stroke="#EEF3F8" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <!-- Lobar branches (left) -->
+        <path d="M-30,118 L-50,140" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" fill="none"/>
+        <path id="seg3Lumen" d="M-30,118 L-50,140" stroke="#EEF3F8" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M-30,118 L-12,150" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" fill="none"/>
+        <path id="seg4Lumen" d="M-30,118 L-12,150" stroke="#EEF3F8" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <!-- Terminal bronchioles (right) -->
+        <path d="M92,118 L116,118" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M92,118 L110,134" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M80,140 L100,160" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M80,140 L72,170" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <!-- Terminal bronchioles (left) -->
+        <path d="M-50,140 L-70,150" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M-50,140 L-58,170" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M-12,150 L-4,178" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M-12,150 L18,170" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <!-- Obstruction layer: mucus plugs that grow with %obs -->
+        <g id="obstructionPath" opacity="0">
+          <circle cx="12" cy="80" r="6" fill="url(#mucus)"/>
+          <circle cx="60" cy="110" r="5.5" fill="url(#mucus)"/>
+          <circle cx="-30" cy="118" r="5.5" fill="url(#mucus)"/>
+          <circle cx="80" cy="140" r="4.5" fill="url(#mucus)"/>
+          <circle cx="-12" cy="150" r="4.5" fill="url(#mucus)"/>
+          <circle cx="92" cy="118" r="4" fill="url(#mucus)"/>
+          <circle cx="-50" cy="140" r="4" fill="url(#mucus)"/>
+        </g>
+        <!-- Bronchospasm narrowing (lumen pinch) is achieved by JS on the lumen strokes -->
+        <text class="svg-label-sm" x="-72" y="200">Obstrucción <tspan id="obsTxt" class="svg-num">0%</tspan></text>
+      </g>
+
+      <!-- Top-left V̇A bar -->
+      <g id="ventilation-icon" transform="translate(220,32)">
+        <text class="svg-label-sm" x="0" y="-6">V̇A · ventilación alveolar</text>
+        <rect x="0" y="0" width="160" height="20" rx="10" fill="#EEF3F8" stroke="var(--line)"/>
+        <rect id="vaBar" x="2" y="2" width="80" height="16" rx="8" fill="var(--o2)" opacity="0.55"/>
+        <text id="vaTxt" class="svg-num" x="170" y="14">1.6 L/min</text>
+      </g>
+
+      <!-- Top-right pressure gauges -->
+      <g transform="translate(620,32)">
+        <text class="svg-label-sm" x="0" y="-6">Presiones alveolares</text>
+        <g transform="translate(0,0)">
+          <rect x="0" y="0" width="120" height="20" rx="10" fill="#EEF3F8" stroke="var(--line)"/>
+          <rect id="pao2Bar" x="2" y="2" width="80" height="16" rx="8" fill="var(--o2)"/>
+          <text class="svg-label-sm" x="-44" y="14">PAO₂</text>
+          <text id="pao2Txt" class="svg-num" x="130" y="14">100</text>
+        </g>
+        <g transform="translate(0,26)">
+          <rect x="0" y="0" width="120" height="20" rx="10" fill="#EEF3F8" stroke="var(--line)"/>
+          <rect id="paco2BarA" x="2" y="2" width="40" height="16" rx="8" fill="var(--co2)"/>
+          <text class="svg-label-sm" x="-50" y="14">PACO₂</text>
+          <text id="paco2TxtA" class="svg-num" x="130" y="14">40</text>
+        </g>
+      </g>
+
+      <!-- Main alveolus -->
+      <g id="alveolusGroup" transform="translate(460,200)">
+        <g id="collapsedAlv">
+          <ellipse fill="#DCE3EB" stroke="var(--ink-2)" stroke-width="1.2" cx="-260" cy="20"  rx="44" ry="22" />
+          <ellipse fill="#DCE3EB" stroke="var(--ink-2)" stroke-width="1.2" cx="220"  cy="-20" rx="50" ry="24" />
+          <ellipse fill="#DCE3EB" stroke="var(--ink-2)" stroke-width="1.2" cx="-180" cy="-50" rx="34" ry="18" />
+          <ellipse fill="#DCE3EB" stroke="var(--ink-2)" stroke-width="1.2" cx="180"  cy="40"  rx="38" ry="20" />
+        </g>
+        <g id="recruitedAlv">
+          <ellipse fill="url(#alvGrad)" stroke="var(--ink)" stroke-width="1.2" cx="-260" cy="20"  rx="64" ry="40" />
+          <ellipse fill="url(#alvGrad)" stroke="var(--ink)" stroke-width="1.2" cx="220"  cy="-20" rx="74" ry="44" />
+          <ellipse fill="url(#alvGrad)" stroke="var(--ink)" stroke-width="1.2" cx="-180" cy="-58" rx="50" ry="32" />
+          <ellipse fill="url(#alvGrad)" stroke="var(--ink)" stroke-width="1.2" cx="180"  cy="50"  rx="56" ry="34" />
+        </g>
+        <ellipse id="mainAlv" cx="0" cy="-30" rx="180" ry="92" fill="url(#alvGrad)" stroke="var(--ink)" stroke-width="2"/>
+        <text class="svg-label" x="-160" y="-100">Alvéolo</text>
+        <text class="svg-label-sm" x="-160" y="-86">Neumocito tipo I · superficie A</text>
+      </g>
+
+      <!-- Membrane -->
+      <g id="membraneGroup" transform="translate(280,300)">
+        <rect id="membraneRect" x="0" y="0" width="360" height="14" fill="url(#memGrad)" stroke="var(--ink)" stroke-width="1"/>
+        <rect id="membraneFibrosis" x="0" y="0" width="360" height="14" fill="url(#fibrosis)" opacity="0"/>
+        <text class="svg-label-sm" x="-78" y="10">Membrana</text>
+        <text id="memThick" class="svg-num" x="370" y="10">0.5 µm</text>
+      </g>
+
+      <!-- Capillary -->
+      <g id="capillaryGroup" transform="translate(80,330)">
+        <rect x="0" y="0" width="760" height="60" rx="30" fill="url(#capGrad)" stroke="var(--co2-deep)" stroke-width="1.5"/>
+        <text class="svg-label" x="0" y="-12">Capilar pulmonar</text>
+        <text class="svg-label-sm" x="0" y="84">Endotelio · Hematíes circulando →</text>
+      </g>
+
+      <!-- Molecules -->
+      <g id="moleculesO2"></g>
+      <g id="moleculesCO2"></g>
+      <g id="rbcs"></g>
+
+      <!-- Tissue indicator -->
+      <g transform="translate(820,310)">
+        <rect x="0" y="0" width="80" height="100" rx="10" fill="var(--tissue)" stroke="#e8c8d0"/>
+        <text class="svg-label-sm" x="40" y="-8" text-anchor="middle">Tejidos</text>
+        <text class="svg-label-sm" x="40" y="118" text-anchor="middle">SatO₂ tisular</text>
+        <text id="tissueSat" class="svg-num" x="40" y="60" text-anchor="middle">98%</text>
+      </g>
+    </svg>
+    </div>
+
+    <!-- Vitals -->
+    <div class="vitals" id="vitals">
+      <div class="vital" id="vPaO2"><div class="lbl">PaO₂</div><div class="val"><span data-v>95</span><span class="unit">mmHg</span><span class="arrow" data-a></span></div></div>
+      <div class="vital" id="vSat"><div class="lbl">SatO₂</div><div class="val"><span data-v>98</span><span class="unit">%</span><span class="arrow" data-a></span></div></div>
+      <div class="vital" id="vPaCO2"><div class="lbl">PaCO₂</div><div class="val"><span data-v>40</span><span class="unit">mmHg</span><span class="arrow" data-a></span></div></div>
+      <div class="vital" id="vPF"><div class="lbl">P/F</div><div class="val"><span data-v>452</span><span class="unit"></span><span class="arrow" data-a></span></div></div>
+      <div class="vital" id="vVA"><div class="lbl">V̇A</div><div class="val"><span data-v>1.6</span><span class="unit">L/min</span><span class="arrow" data-a></span></div></div>
+      <div class="vital" id="vPH"><div class="lbl">pH</div><div class="val"><span data-v>7.40</span><span class="unit"></span><span class="arrow" data-a></span></div></div>
+    </div>
+  </section>
+
+  <!-- ====== PANEL ====== -->
+  <aside class="panel">
+    <div>
+      <h2>Escenario</h2>
+      <div class="presets" style="margin-top:6px">
+        <button class="preset active" data-k="sano"><span class="tag">Sano</span>21% FiO₂</button>
+        <button class="preset" data-k="t1"><span class="tag">Tipo I · Hipoxémico</span>SDRA / neumonía</button>
+        <button class="preset" data-k="t2"><span class="tag">Tipo II · Hipercápnico</span>ENM / apneas</button>
+        <button class="preset" data-k="t3"><span class="tag">Tipo III · Mixto</span>Membrana + bomba</button>
+      </div>
+    </div>
+
+    <fieldset>
+      <legend>Membrana y vía aérea</legend>
+      <div class="control path">
+        <div class="row"><label for="thick">Espesor de membrana (T)</label><span class="num"><span id="thickV">0.5</span> µm</span></div>
+        <input type="range" id="thick" min="0.5" max="5" step="0.1" value="0.5" />
+      </div>
+      <div class="control path">
+        <div class="row"><label for="area">Área de intercambio (A)</label><span class="num"><span id="areaV">100</span> %</span></div>
+        <input type="range" id="area" min="20" max="100" step="1" value="100" />
+      </div>
+      <div class="control obs">
+        <div class="row"><label for="obs">Obstrucción de la vía aérea</label><span class="num"><span id="obsV">0</span> %</span></div>
+        <input type="range" id="obs" min="0" max="90" step="1" value="0" />
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Bomba ventilatoria</legend>
+      <div class="control vent">
+        <div class="row"><label for="vt">Vt (volumen corriente)</label><span class="num"><span id="vtV">7</span> ml/kg</span></div>
+        <input type="range" id="vt" min="2" max="12" step="0.5" value="7" />
+      </div>
+      <div class="control vent">
+        <div class="row"><label for="fr">FR</label><span class="num"><span id="frV">16</span> rpm</span></div>
+        <input type="range" id="fr" min="6" max="50" step="1" value="16" />
+      </div>
+      <div class="control vent">
+        <div class="row"><label for="drive">Drive muscular</label><span class="num"><span id="driveV">100</span> %</span></div>
+        <input type="range" id="drive" min="20" max="120" step="1" value="100" />
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Soporte ventilatorio</legend>
+      <div class="control oxy">
+        <div class="row"><label for="fio2">FiO₂</label><span class="num"><span id="fio2V">21</span> %</span></div>
+        <input type="range" id="fio2" min="21" max="100" step="1" value="21" />
+      </div>
+      <div class="control oxy">
+        <div class="row"><label for="peep">PEEP</label><span class="num"><span id="peepV">0</span> cmH₂O</span></div>
+        <input type="range" id="peep" min="0" max="18" step="1" value="0" />
+      </div>
+    </fieldset>
+
+    <div class="fick">
+      <div><strong>Ley de Fick</strong> · flujo difusivo a través de la membrana</div>
+      <div class="formula">V̇gas = (A · D · ΔP) / T</div>
+      <div class="factors">
+        <div class="fac" id="facA"><div class="k">A</div><div class="v" id="facAv">100%</div></div>
+        <div class="fac" id="facD"><div class="k">D</div><div class="v" id="facDv">CO₂&gt;O₂</div></div>
+        <div class="fac" id="facP"><div class="k">ΔP</div><div class="v" id="facPv">60</div></div>
+        <div class="fac" id="facT"><div class="k">T</div><div class="v" id="facTv">0.5µ</div></div>
+      </div>
+      <div class="legend-x">D(CO₂) ≈ 20 × D(O₂) → la hipoxemia aparece antes que la hipercapnia.</div>
+    </div>
+
+    <div class="hint" id="hint">
+      <strong>Pulmón sano.</strong> Difusión libre. PaO₂ ≈ 95, PaCO₂ ≈ 40. Mueve los controles para ver el fallo.
+    </div>
+  </aside>
+
+  <footer class="footnote">Álvaro Navarro® 2006 · Licencia Creative Commons Non-Commercial · Material didáctico · Taller de VMD Pediátrica</footer>
+</div>
+
+<script>
+/* ===========================================================
+   Physiology engine (pediatric ~20 kg)
+   - Alveolar gas eq: PAO₂ = FiO₂·(Patm − PH₂O) − PaCO₂/R
+   - Alveolar ventilation: PaCO₂ ∝ V̇CO₂ / V̇A
+   - Fick: V̇gas = (A · D · ΔP) / T  →  PcO₂ depends on (A/T)
+   - CO₂ diffusivity ~20× O₂ → hypoxemia precedes hypercapnia
+   - Airway obstruction: degrades V̇A (flow loss) AND mildly
+     impairs CO₂ clearance (its main effect is via V̇A).
+   =========================================================== */
+
+const Patm   = 760, PH2O = 47, R_resp = 0.8;
+const Vd_ratio_base = 0.30;
+const WEIGHT_KG = 20;
+const VA_REF = 1.57; // L/min, anchors PaCO₂=40 in healthy state
+
+const $ = (id) => document.getElementById(id);
+const state = {
+  thick: 0.5, area: 100, obs: 0,
+  vt: 7, fr: 16, drive: 100,
+  fio2: 21, peep: 0
+};
+
+const PRESETS = {
+  sano: { thick:0.5, area:100, obs:0,  vt:7,  fr:16, drive:100, fio2:21, peep:0 },
+  t1:   { thick:3.2, area:55,  obs:0,  vt:6,  fr:28, drive:100, fio2:21, peep:0 },
+  t2:   { thick:0.6, area:100, obs:55, vt:5,  fr:16, drive:75,  fio2:21, peep:0 },
+  t3:   { thick:2.5, area:70,  obs:30, vt:5,  fr:18, drive:75,  fio2:21, peep:0 }
+};
+
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+
+function compute(s){
+  // Dead-space fraction grows with smaller Vt
+  const Vd_frac = clamp(Vd_ratio_base * (7 / Math.max(2, s.vt)), 0.25, 0.85);
+  const Vt_ml   = s.vt * WEIGHT_KG;
+  const fr_eff  = s.fr * (s.drive/100);
+
+  // Airway obstruction reduces effective flow that reaches the alveolus.
+  // 0% → 1.0 ; 90% → ~0.25
+  const obs_factor = clamp(1 - 0.85 * (s.obs/100), 0.15, 1);
+  const Vt_eff = Vt_ml * obs_factor;
+
+  const VE = (Vt_eff * fr_eff) / 1000;
+  let VA = ((Vt_eff * (1 - Vd_frac)) * fr_eff) / 1000;
+  VA = Math.max(0.15, VA);
+
+  // PaCO₂ ∝ V̇CO₂ / V̇A; obstruction also adds a small extra CO₂ retention
+  // to reflect that even with same V̇A, a severely obstructed airway
+  // worsens CO₂ washout (uneven ventilation, increased dead space).
+  const co2_obs_penalty = 1 + 0.4 * (s.obs/100);
+  const PaCO2 = clamp(40 * (VA_REF / VA) * co2_obs_penalty, 18, 130);
+
+  const FiO2 = s.fio2 / 100;
+  const PAO2 = FiO2 * (Patm - PH2O) - PaCO2 / R_resp;
+
+  // Fick-style penalty for O₂ across the membrane:
+  // mem_o2 = (A_norm) / (T_norm) clamped to [0.2, 1]
+  const A_norm = s.area / 100;
+  const T_norm = 0.5 / s.thick;          // 1 at 0.5µm, 0.1 at 5µm
+  const mem_o2 = clamp(A_norm * T_norm, 0.2, 1);
+
+  // CO₂ ~20× faster diffuser → barely affected by thickness/area until extreme
+  const mem_co2 = clamp(0.6 + 0.4 * Math.pow(A_norm * T_norm, 0.25), 0.6, 1);
+
+  // Shunt from lost area; PEEP recruits some
+  const shunt_eff = clamp((100 - s.area) - s.peep * 2.2, 0, 80) / 100;
+
+  // ΔP across membrane for O₂: PAO₂ − PvO₂
+  const PvO2 = 40;
+  const dP_O2 = Math.max(0, PAO2 - PvO2);
+
+  // End-capillary PO2 after diffusion (simplified)
+  const PcO2 = PvO2 + dP_O2 * mem_o2;
+
+  // Mix with shunt
+  const PaO2_mixed = (1 - shunt_eff) * PcO2 + shunt_eff * PvO2;
+  const PaO2 = clamp(PaO2_mixed, 25, 600);
+
+  const sat = (po2) => {
+    const x = Math.pow(po2/26.6, 2.7);
+    return clamp(100 * x/(1+x), 0, 100);
+  };
+  const SatO2 = sat(PaO2);
+
+  const PF = PaO2 / FiO2;
+  const pH = clamp(7.40 - 0.008 * (PaCO2 - 40), 6.95, 7.65);
+
+  return { Vt_ml, Vt_eff, fr_eff, VE, VA, Vd_frac, PaCO2, FiO2,
+           PAO2, PaO2, SatO2, PF, pH, mem_o2, mem_co2, shunt_eff,
+           PcO2, dP_O2, A_norm };
+}
+
+/* ============== Renderer ============== */
+const svgNS = 'http://www.w3.org/2000/svg';
+const moleculesO2  = $('moleculesO2');
+const moleculesCO2 = $('moleculesCO2');
+const rbcsG        = $('rbcs');
+const membraneRect = $('membraneRect');
+const membraneFibrosis = $('membraneFibrosis');
+
+const RBC_COUNT = 7;
+const rbcs = [];
+for (let i = 0; i < RBC_COUNT; i++){
+  const g = document.createElementNS(svgNS, 'g');
+  const e = document.createElementNS(svgNS, 'ellipse');
+  e.setAttribute('cx', 0); e.setAttribute('cy', 0);
+  e.setAttribute('rx', 14); e.setAttribute('ry', 9);
+  e.setAttribute('fill', '#5C2A3E');
+  e.setAttribute('stroke', '#3a1a28'); e.setAttribute('stroke-width','1');
+  g.appendChild(e); rbcsG.appendChild(g);
+  rbcs.push({ g, e, x: i * (760/RBC_COUNT), sat: 0 });
+}
+
+const O2_POOL = 22, o2s = [];
+for (let i = 0; i < O2_POOL; i++){
+  const c = document.createElementNS(svgNS, 'circle');
+  c.setAttribute('r', 4.5); c.setAttribute('fill', 'var(--o2)');
+  c.setAttribute('stroke', 'var(--o2-deep)'); c.setAttribute('stroke-width','0.8');
+  moleculesO2.appendChild(c);
+  o2s.push({ c, t: 0, x: 0, lane: 0, alive: false, speed: 1 });
+}
+const CO2_POOL = 22, co2s = [];
+for (let i = 0; i < CO2_POOL; i++){
+  const c = document.createElementNS(svgNS, 'circle');
+  c.setAttribute('r', 5.5); c.setAttribute('fill', 'var(--co2)');
+  c.setAttribute('stroke', 'var(--co2-deep)'); c.setAttribute('stroke-width','0.8');
+  moleculesCO2.appendChild(c);
+  co2s.push({ c, t: 0, x: 0, lane: 0, alive: false, speed: 1 });
+}
+
+function applyAlveolusVisual(s, c){
+  // Membrane thickness rect
+  const minH = 6, maxH = 36;
+  const h = minH + ((s.thick - 0.5)/(5-0.5)) * (maxH - minH);
+  membraneRect.setAttribute('height', h);
+  membraneRect.setAttribute('y', 7 - h/2);
+  membraneFibrosis.setAttribute('height', h);
+  membraneFibrosis.setAttribute('y', 7 - h/2);
+  membraneFibrosis.setAttribute('opacity', clamp((s.thick-1.2)/3, 0, 0.85));
+  $('memThick').textContent = s.thick.toFixed(1) + ' µm';
+
+  // Area: collapsed satellites cross-fade based on (100-area) %
+  const areaLost = (100 - s.area) / 80; // 0..1 across [100..20]
+  const collapseEls = document.querySelectorAll('#collapsedAlv ellipse');
+  const recruitedEls = document.querySelectorAll('#recruitedAlv ellipse');
+  collapseEls.forEach((e,i) => {
+    const threshold = (i+1)/4;
+    e.style.opacity = (areaLost >= threshold) ? 0.9 : 0;
+  });
+  recruitedEls.forEach((e,i) => {
+    const threshold = (i+1)/4;
+    e.style.opacity = (areaLost >= threshold) ? 0 : 1;
+  });
+
+  // Obstruction: pinch lumen strokes (bronchospasm) + mucus opacity
+  const obsFrac = s.obs / 100;
+  const lumenPinch = (full) => Math.max(0.5, full * (1 - 0.92 * obsFrac));
+  $('tracheaLumen').setAttribute('stroke-width', lumenPinch(9));
+  $('bronchusRLumen').setAttribute('stroke-width', lumenPinch(7));
+  $('bronchusLLumen').setAttribute('stroke-width', lumenPinch(7));
+  $('seg1Lumen').setAttribute('stroke-width', lumenPinch(5));
+  $('seg2Lumen').setAttribute('stroke-width', lumenPinch(5));
+  $('seg3Lumen').setAttribute('stroke-width', lumenPinch(5));
+  $('seg4Lumen').setAttribute('stroke-width', lumenPinch(5));
+  $('obstructionPath').setAttribute('opacity', obsFrac * 0.95);
+  $('obsTxt').textContent = s.obs + '%';
+
+  // Top bars
+  $('vaBar').setAttribute('width', 4 + clamp(c.VA/4, 0, 1) * 152);
+  $('vaTxt').textContent = c.VA.toFixed(1) + ' L/min';
+  $('pao2Bar').setAttribute('width', 4 + clamp(c.PAO2/700, 0, 1) * 112);
+  $('pao2Txt').textContent = Math.round(c.PAO2);
+  $('paco2BarA').setAttribute('width', 4 + clamp(c.PaCO2/100, 0, 1) * 112);
+  $('paco2TxtA').textContent = Math.round(c.PaCO2);
+
+  // Fick factors panel
+  $('facAv').textContent = s.area + '%';
+  $('facA').className = 'fac' + (s.area < 80 ? ' down' : '');
+  $('facPv').textContent = Math.round(c.dP_O2);
+  $('facP').className = 'fac' + (c.dP_O2 > 80 ? ' up' : c.dP_O2 < 50 ? ' down' : '');
+  $('facTv').textContent = s.thick.toFixed(1) + 'µ';
+  $('facT').className = 'fac' + (s.thick > 1.2 ? ' down' : '');
+  $('facDv').textContent = 'CO₂≫O₂';
+  $('facD').className = 'fac';
+}
+
+function vitalClass(el, level){
+  el.classList.remove('good','warn','bad');
+  if (level) el.classList.add(level);
+}
+function set(id, v, level, arrow){
+  const el = $(id);
+  el.querySelector('[data-v]').textContent = v;
+  vitalClass(el, level);
+  el.querySelector('[data-a]').textContent = arrow || '';
+  if (arrow === '↑↑' || arrow === '↓↓') el.querySelector('[data-a]').style.color = 'var(--alarm)';
+  else if (arrow === '↑' || arrow === '↓') el.querySelector('[data-a]').style.color = 'var(--amber)';
+  else el.querySelector('[data-a]').style.color = '';
+}
+
+function renderVitals(c){
+  let lvl, arr;
+  lvl='good'; arr='';
+  if (c.PaO2 < 60) { lvl='bad'; arr='↓↓'; }
+  else if (c.PaO2 < 80) { lvl='warn'; arr='↓'; }
+  else if (c.PaO2 > 200) { lvl='warn'; arr='↑'; }
+  set('vPaO2', Math.round(c.PaO2), lvl, arr);
+
+  lvl='good'; arr='';
+  if (c.SatO2 < 88) { lvl='bad'; arr='↓↓'; }
+  else if (c.SatO2 < 94) { lvl='warn'; arr='↓'; }
+  set('vSat', c.SatO2.toFixed(0), lvl, arr);
+
+  lvl='good'; arr='';
+  if (c.PaCO2 > 60) { lvl='bad'; arr='↑↑'; }
+  else if (c.PaCO2 > 45) { lvl='warn'; arr='↑'; }
+  else if (c.PaCO2 < 32) { lvl='warn'; arr='↓'; }
+  set('vPaCO2', Math.round(c.PaCO2), lvl, arr);
+
+  lvl='good'; arr='';
+  if (c.PF < 200) { lvl='bad'; arr='↓↓'; }
+  else if (c.PF < 300) { lvl='warn'; arr='↓'; }
+  set('vPF', Math.round(c.PF), lvl, arr);
+
+  lvl='good'; arr='';
+  if (c.VA < 0.7) { lvl='bad'; arr='↓↓'; }
+  else if (c.VA < 1.2) { lvl='warn'; arr='↓'; }
+  else if (c.VA > 2.5) { lvl='warn'; arr='↑'; }
+  set('vVA', c.VA.toFixed(1), lvl, arr);
+
+  lvl='good'; arr='';
+  if (c.pH < 7.25) { lvl='bad'; arr='↓↓'; }
+  else if (c.pH < 7.35) { lvl='warn'; arr='↓'; }
+  else if (c.pH > 7.45) { lvl='warn'; arr='↑'; }
+  set('vPH', c.pH.toFixed(2), lvl, arr);
+
+  $('tissueSat').textContent = c.SatO2.toFixed(0) + '%';
+  $('tissueSat').setAttribute('fill',
+    c.SatO2 < 88 ? 'var(--alarm)' : c.SatO2 < 94 ? 'var(--amber)' : 'var(--green)');
+}
+
+function renderHint(s, c){
+  const el = $('hint');
+  const hypo = c.PaO2 < 80 || c.SatO2 < 94;
+  const hyper = c.PaCO2 > 45;
+  let html = '', cls = '';
+  if (!hypo && !hyper){
+    html = '<strong>Pulmón sano.</strong> O₂ y CO₂ difunden libremente; el CO₂ ~20× más rápido. PaO₂ ≈ '+Math.round(c.PaO2)+', PaCO₂ ≈ '+Math.round(c.PaCO2)+'.';
+  } else if (hypo && !hyper){
+    html = '<strong>Tipo I · hipoxémico.</strong> Membrana o shunt. CO₂ aún sale. Palancas: '
+      + '<span class="lever">PEEP</span> + <span class="lever">FiO₂</span>. Vigila Pmean.';
+    cls = 't1';
+  } else if (!hypo && hyper){
+    html = '<strong>Tipo II · hipercápnico.</strong> Bomba/vía aérea: V̇A baja. Subir FiO₂ NO corrige hipercapnia. Palancas: '
+      + '<span class="lever">Vt</span> + <span class="lever">FR</span> (BiPAP-ST).';
+    cls = 't2';
+  } else {
+    html = '<strong>Tipo III · mixto.</strong> Membrana + bomba. Ambas palancas: '
+      + '<span class="lever">PEEP/FiO₂</span> y <span class="lever">Vt/FR</span>.';
+    cls = 't3';
+  }
+  el.className = 'hint' + (cls ? ' ' + cls : '');
+  el.innerHTML = html;
+}
+
+/* ============== Animation ============== */
+const ALV_BOTTOM_Y = 250;
+
+let lastT = performance.now();
+let computed = compute(state);
+
+function spawnO2(o, c){
+  o.alive = true; o.t = 0;
+  o.x = 280 + Math.random() * 360;
+  o.lane = (Math.random() - 0.5) * 28;
+  o.speed = 0.25 + (c.PAO2/700) * 1.2 * c.mem_o2;
+}
+function spawnCO2(o, s, c){
+  o.alive = true; o.t = 0;
+  o.x = 280 + Math.random() * 360;
+  o.lane = (Math.random() - 0.5) * 28;
+  o.speed = 0.55 + (c.VA / 1.8) * 1.1 * c.mem_co2;
+}
+
+function easeInOut(t){ return t<0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
+function lerpColor(a,b,t){ return [a[0]+(b[0]-a[0])*t|0, a[1]+(b[1]-a[1])*t|0, a[2]+(b[2]-a[2])*t|0]; }
+
+function tick(now){
+  const dt = Math.min(50, now - lastT) / 1000;
+  lastT = now;
+  const c = computed;
+
+  // RBCs
+  const rbcSpeed = 60 + 60 * clamp(c.VA / 1.6, 0, 2);
+  for (const r of rbcs){
+    r.x += rbcSpeed * dt;
+    if (r.x > 760) r.x -= 760;
+    const progress = clamp(r.x / 760, 0, 1);
+    const equilibration = clamp(progress * (1.6 - 0.18 * (state.thick-0.5)) - state.thick*0.05, 0, 1);
+    const targetSat = 100 * (Math.pow(c.PcO2/26.6, 2.7) / (1 + Math.pow(c.PcO2/26.6, 2.7)));
+    const isShunt = ((r.x|0) % 100) < (c.shunt_eff * 100);
+    const reached = isShunt ? 0 : targetSat * equilibration;
+    r.sat = reached;
+    const t = clamp(reached/100, 0, 1);
+    const col = lerpColor([92,42,62], [211,58,58], t);
+    r.e.setAttribute('fill', `rgb(${col[0]},${col[1]},${col[2]})`);
+    r.g.setAttribute('transform', `translate(${80 + r.x},${360})`);
+  }
+
+  // O₂ molecules
+  const o2_active = Math.round(O2_POOL * clamp(c.PAO2/250, 0.05, 1) * c.mem_o2);
+  o2s.forEach((o,i) => {
+    if (!o.alive) {
+      if (i < o2_active && Math.random() < 0.04) spawnO2(o, c);
+      else { o.c.setAttribute('opacity', 0); }
+      return;
+    }
+    o.t += dt * o.speed * 0.55;
+    if (o.t >= 1) { o.alive = false; o.c.setAttribute('opacity', 0); return; }
+    const y0 = ALV_BOTTOM_Y - 10, y1 = 360 + o.lane;
+    const y = y0 + (y1 - y0) * easeInOut(o.t);
+    o.c.setAttribute('cx', o.x + Math.sin(o.t * 4) * 2);
+    o.c.setAttribute('cy', y);
+    o.c.setAttribute('opacity', o.t < 0.1 ? o.t*10 : (o.t > 0.9 ? (1-o.t)*10 : 1));
+  });
+
+  // CO₂ molecules
+  const co2_active = Math.round(CO2_POOL * clamp(c.VA / 1.6, 0.1, 1));
+  co2s.forEach((o,i) => {
+    if (!o.alive) {
+      if (i < co2_active && Math.random() < 0.05) spawnCO2(o, state, c);
+      else { o.c.setAttribute('opacity', 0); }
+      return;
+    }
+    o.t += dt * o.speed * 0.6;
+    if (o.t >= 1) { o.alive = false; o.c.setAttribute('opacity', 0); return; }
+    const y0 = 360 + o.lane, y1 = ALV_BOTTOM_Y - 10;
+    const y = y0 + (y1 - y0) * easeInOut(o.t);
+    o.c.setAttribute('cx', o.x + Math.sin(o.t * 4 + 1.3) * 2);
+    o.c.setAttribute('cy', y);
+    o.c.setAttribute('opacity', o.t < 0.1 ? o.t*10 : (o.t > 0.9 ? (1-o.t)*10 : 1));
+  });
+
+  // Breathing pulse on main alveolus
+  const fr_eff_hz = (state.fr * (state.drive/100)) / 60;
+  const breath = (Math.sin(now/1000 * 2*Math.PI * fr_eff_hz) + 1) / 2;
+  const obs_factor = clamp(1 - 0.85 * (state.obs/100), 0.15, 1);
+  const baseRx = 180 * clamp(1 + (state.vt-7)*0.025*obs_factor + state.peep*0.012, 0.55, 1.3);
+  const baseRy = 92  * clamp(1 + (state.vt-7)*0.025*obs_factor + state.peep*0.012, 0.55, 1.3);
+  const amp = (0.04 + 0.06 * (state.vt/10) * (state.drive/100)) * obs_factor;
+  $('mainAlv').setAttribute('rx', baseRx * (1 + amp*breath));
+  $('mainAlv').setAttribute('ry', baseRy * (1 + amp*breath*0.8));
+
+  requestAnimationFrame(tick);
+}
+
+/* ============== Wire ============== */
+function readControls(){
+  state.thick = parseFloat($('thick').value);
+  state.area  = parseInt($('area').value, 10);
+  state.obs   = parseInt($('obs').value, 10);
+  state.vt    = parseFloat($('vt').value);
+  state.fr    = parseInt($('fr').value, 10);
+  state.drive = parseInt($('drive').value, 10);
+  state.fio2  = parseInt($('fio2').value, 10);
+  state.peep  = parseInt($('peep').value, 10);
+  $('thickV').textContent = state.thick.toFixed(1);
+  $('areaV').textContent  = state.area;
+  $('obsV').textContent   = state.obs;
+  $('vtV').textContent    = state.vt;
+  $('frV').textContent    = state.fr;
+  $('driveV').textContent = state.drive;
+  $('fio2V').textContent  = state.fio2;
+  $('peepV').textContent  = state.peep;
+}
+function applyPreset(k){
+  Object.assign(state, PRESETS[k]);
+  for (const id of ['thick','area','obs','vt','fr','drive','fio2','peep']) $(id).value = state[id];
+  readControls(); refresh();
+  document.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+}
+function refresh(){
+  computed = compute(state);
+  applyAlveolusVisual(state, computed);
+  renderVitals(computed);
+  renderHint(state, computed);
+}
+document.querySelectorAll('input[type="range"]').forEach(inp => {
+  inp.addEventListener('input', () => {
+    readControls(); refresh();
+    document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+  });
+});
+document.querySelectorAll('.preset').forEach(b => {
+  b.addEventListener('click', () => applyPreset(b.dataset.k));
+});
+
+readControls(); refresh();
+requestAnimationFrame((t) => { lastT = t; tick(t); });
+</script>
+</body>
+</html>
